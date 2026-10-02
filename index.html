@@ -1,0 +1,437 @@
+```html
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>해외선물 평단가 & 익절가 계산기</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkBg: '#0f172a',
+                        cardBg: '#1e293b',
+                        inputBg: '#334155',
+                        accentBuy: '#22c55e',
+                        accentSell: '#ef4444',
+                        goldColor: '#eab308',
+                        nasdaqColor: '#3b82f6'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #0b0f19;
+            color: #f8fafc;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        /* Custom scrollbar for desktop preview */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+        /* Input appearance cleanup */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between items-center bg-slate-950 font-sans antialiased text-slate-100 p-2 sm:p-4">
+
+    <!-- App Container (Mobile viewport style) -->
+    <div class="w-full max-w-md bg-slate-900 rounded-3xl shadow-2xl border border-slate-800 flex flex-col overflow-hidden my-auto">
+        
+        <!-- Header -->
+        <header class="px-5 pt-5 pb-3 bg-slate-900 border-b border-slate-800/80 flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-blue-600 flex items-center justify-center text-white shadow-lg">
+                    <i class="fa-solid fa-chart-line text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="text-base font-bold tracking-tight text-white leading-tight">해외선물 평단가 계산기</h1>
+                    <p class="text-xs text-slate-400">골드 (+1$) & 나스닥 (+10pt) 목표</p>
+                </div>
+            </div>
+            <button id="resetBtn" onclick="resetAll()" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition">
+                <i class="fa-solid fa-rotate-right text-xs"></i> Initial
+            </button>
+        </header>
+
+        <!-- Controls Section -->
+        <div class="p-4 space-y-3 bg-slate-900/50">
+            <!-- Asset Selection -->
+            <div>
+                <label class="block text-xs font-medium text-slate-400 mb-1.5">거래 종목 선택</label>
+                <div class="grid grid-cols-2 gap-2 bg-slate-950 p-1 rounded-2xl border border-slate-800">
+                    <button id="assetGold" onclick="setAsset('GOLD')" class="py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 bg-amber-500/20 text-amber-400 border border-amber-500/50 shadow-sm">
+                        <i class="fa-solid fa-coins text-amber-400"></i> 골드 (익절 +1.00$)
+                    </button>
+                    <button id="assetNasdaq" onclick="setAsset('NASDAQ')" class="py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 text-slate-400 hover:text-slate-200 border border-transparent">
+                        <i class="fa-solid fa-arrow-trend-up text-blue-400"></i> 나스닥 (익절 +10.00pt)
+                    </button>
+                </div>
+            </div>
+
+            <!-- Position Selection -->
+            <div>
+                <label class="block text-xs font-medium text-slate-400 mb-1.5">진입 포지션</label>
+                <div class="grid grid-cols-2 gap-2 bg-slate-950 p-1 rounded-2xl border border-slate-800">
+                    <button id="posBuy" onclick="setPosition('BUY')" class="py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-sm">
+                        <i class="fa-solid fa-arrow-up-long"></i> 매수 (Long)
+                    </button>
+                    <button id="posSell" onclick="setPosition('SELL')" class="py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 text-slate-400 hover:text-slate-200 border border-transparent">
+                        <i class="fa-solid fa-arrow-down-long"></i> 매도 (Short)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Summary Cards (Sticky Result Display) -->
+        <div class="px-4 py-3 bg-slate-800/60 border-y border-slate-800 space-y-2.5">
+            <div class="grid grid-cols-2 gap-2.5">
+                <!-- Average Price -->
+                <div class="bg-slate-900/90 p-3 rounded-2xl border border-slate-800">
+                    <div class="text-[11px] font-medium text-slate-400 flex items-center justify-between">
+                        <span>현재 평균 단가</span>
+                        <span id="totalContractsBadge" class="px-1.5 py-0.5 rounded-md bg-slate-800 text-slate-300 font-bold text-[10px]">0 계약</span>
+                    </div>
+                    <div id="avgPriceDisplay" class="text-lg font-extrabold text-white mt-1 tracking-tight">0.00</div>
+                </div>
+
+                <!-- Target Price -->
+                <div id="targetCard" class="bg-gradient-to-br from-emerald-950/40 to-slate-900 p-3 rounded-2xl border border-emerald-500/30">
+                    <div class="text-[11px] font-medium text-emerald-400 flex items-center justify-between">
+                        <span>목표 익절가</span>
+                        <span id="targetOffsetBadge" class="text-[10px] font-semibold text-emerald-400/80">+1.00$</span>
+                    </div>
+                    <div id="targetPriceDisplay" class="text-lg font-extrabold text-emerald-400 mt-1 tracking-tight">0.00</div>
+                </div>
+            </div>
+
+            <!-- Profit Summary Bar -->
+            <div class="bg-slate-900/90 px-3 py-2 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+                <span class="text-slate-400 font-medium">익절 달성 시 예상 수익</span>
+                <span id="targetProfitDisplay" class="font-bold text-emerald-400">+0.00 pt ($0.00)</span>
+            </div>
+        </div>
+
+        <!-- Entry Inputs List (Initial + 5 Additions) -->
+        <div class="p-4 space-y-3 max-h-[380px] overflow-y-auto" id="entryListContainer">
+            <!-- Dynamically or statically created entry rows -->
+            <!-- Row 0: Initial Entry -->
+            <div class="entry-row bg-slate-800/40 rounded-2xl p-3 border border-slate-800/80 space-y-2">
+                <div class="flex items-center justify-between text-xs">
+                    <span class="font-semibold text-slate-200 flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-blue-500"></span> 최초 진입 (1차)
+                    </span>
+                    <span class="text-[11px] text-slate-400" id="stepAvg-0">-</span>
+                </div>
+                <div class="grid grid-cols-7 gap-2">
+                    <div class="col-span-4">
+                        <label class="block text-[10px] text-slate-400 mb-0.5">진입 가격</label>
+                        <input type="number" step="any" id="price-0" oninput="calculate()" placeholder="0.00"
+                               class="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-2.5 py-1.5 text-sm font-semibold text-white focus:outline-none focus:border-blue-500 transition">
+                    </div>
+                    <div class="col-span-3">
+                        <label class="block text-[10px] text-slate-400 mb-0.5">수량 (계약)</label>
+                        <input type="number" step="0.01" min="0" value="1" id="qty-0" oninput="calculate()" placeholder="1"
+                               class="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-2.5 py-1.5 text-sm font-semibold text-white text-center focus:outline-none focus:border-blue-500 transition">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Rows 1 to 5: Additional Entries -->
+            <!-- Row 1 -->
+            <div class="entry-row bg-slate-800/20 rounded-2xl p-3 border border-slate-800/50 space-y-2">
+                <div class="flex items-center justify-between text-xs">
+                    <span class="font-medium text-slate-400 flex items-center gap-1.5">
+                        <span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span> 추가 진입 1회
+                    </span>
+                    <span class="text-[11px] text-slate-400" id="stepAvg-1">-</span>
+                </div>
+                <div class="grid grid-cols-7 gap-2">
+                    <div class="col-span-4">
+                        <input type="number" step="any" id="price-1" oninput="calculate()" placeholder="0.00"
+                               class="w-full bg-slate-950/70 border border-slate-800 rounded-xl px-2.5 py-1.5 text-sm font-semibold text-white focus:outline-none focus:border-blue-500 transition">
+                    </div>
+                    <div class="col-span-3">
+                        <input type="number" step="0.01" min="0" id="qty-1" oninput="calculate()" placeholder="수량"
+                               class="w-full bg-slate-950/70 border border-slate-800 rounded-xl px-2.5 py-1.5 text-sm font-semibold text-white text-center focus:outline-none focus:border-blue-500 transition">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Row 2 -->
+            <div class="entry-row bg-slate-800/20 rounded-2xl p-3 border border-slate-800/50 space-y-2">
+                <div class="flex items-center justify-between text-xs">
+                    <span class="font-medium text-slate-400 flex items-center gap-1.5">
+                        <span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span> 추가 진입 2회
+                    </span>
+                    <span class="text-[11px] text-slate-400" id="stepAvg-2">-</span>
+                </div>
+                <div class="grid grid-cols-7 gap-2">
+                    <div class="col-span-4">
+                        <input type="number" step="any" id="price-2" oninput="calculate()" placeholder="0.00"
+                               class="w-full bg-slate-950/70 border border-slate-800 rounded-xl px-2.5 py-1.5 text-sm font-semibold text-white focus:outline-none focus:border-blue-500 transition">
+                    </div>
+                    <div class="col-span-3">
+                        <input type="number" step="0.01" min="0" id="qty-2" oninput="calculate()" placeholder="수량"
+                               class="w-full bg-slate-950/70 border border-slate-800 rounded-xl px-2.5 py-1.5 text-sm font-semibold text-white text-center focus:outline-none focus:border-blue-500 transition">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Row 3 -->
+            <div class="entry-row bg-slate-800/20 rounded-2xl p-3 border border-slate-800/50 space-y-2">
+                <div class="flex items-center justify-between text-xs">
+                    <span class="font-medium text-slate-400 flex items-center gap-1.5">
+                        <span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span> 추가 진입 3회
+                    </span>
+                    <span class="text-[11px] text-slate-400" id="stepAvg-3">-</span>
+                </div>
+                <div class="grid grid-cols-7 gap-2">
+                    <div class="col-span-4">
+                        <input type="number" step="any" id="price-3" oninput="calculate()" placeholder="0.00"
+                               class="w-full bg-slate-950/70 border border-slate-800 rounded-xl px-2.5 py-1.5 text-sm font-semibold text-white focus:outline-none focus:border-blue-500 transition">
+                    </div>
+                    <div class="col-span-3">
+                        <input type="number" step="0.01" min="0" id="qty-3" oninput="calculate()" placeholder="수량"
+                               class="w-full bg-slate-950/70 border border-slate-800 rounded-xl px-2.5 py-1.5 text-sm font-semibold text-white text-center focus:outline-none focus:border-blue-500 transition">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Row 4 -->
+            <div class="entry-row bg-slate-800/20 rounded-2xl p-3 border border-slate-800/50 space-y-2">
+                <div class="flex items-center justify-between text-xs">
+                    <span class="font-medium text-slate-400 flex items-center gap-1.5">
+                        <span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span> 추가 진입 4회
+                    </span>
+                    <span class="text-[11px] text-slate-400" id="stepAvg-4">-</span>
+                </div>
+                <div class="grid grid-cols-7 gap-2">
+                    <div class="col-span-4">
+                        <input type="number" step="any" id="price-4" oninput="calculate()" placeholder="0.00"
+                               class="w-full bg-slate-950/70 border border-slate-800 rounded-xl px-2.5 py-1.5 text-sm font-semibold text-white focus:outline-none focus:border-blue-500 transition">
+                    </div>
+                    <div class="col-span-3">
+                        <input type="number" step="0.01" min="0" id="qty-4" oninput="calculate()" placeholder="수량"
+                               class="w-full bg-slate-950/70 border border-slate-800 rounded-xl px-2.5 py-1.5 text-sm font-semibold text-white text-center focus:outline-none focus:border-blue-500 transition">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Row 5 -->
+            <div class="entry-row bg-slate-800/20 rounded-2xl p-3 border border-slate-800/50 space-y-2">
+                <div class="flex items-center justify-between text-xs">
+                    <span class="font-medium text-slate-400 flex items-center gap-1.5">
+                        <span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span> 추가 진입 5회
+                    </span>
+                    <span class="text-[11px] text-slate-400" id="stepAvg-5">-</span>
+                </div>
+                <div class="grid grid-cols-7 gap-2">
+                    <div class="col-span-4">
+                        <input type="number" step="any" id="price-5" oninput="calculate()" placeholder="0.00"
+                               class="w-full bg-slate-950/70 border border-slate-800 rounded-xl px-2.5 py-1.5 text-sm font-semibold text-white focus:outline-none focus:border-blue-500 transition">
+                    </div>
+                    <div class="col-span-3">
+                        <input type="number" step="0.01" min="0" id="qty-5" oninput="calculate()" placeholder="수량"
+                               class="w-full bg-slate-950/70 border border-slate-800 rounded-xl px-2.5 py-1.5 text-sm font-semibold text-white text-center focus:outline-none focus:border-blue-500 transition">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer Info -->
+        <footer class="p-3 bg-slate-950 border-t border-slate-800 text-center text-[11px] text-slate-500 flex justify-between items-center px-4">
+            <span>골드: $100/pt | 나스닥: $20/pt 기준</span>
+            <span class="text-slate-400">Trading Calculator</span>
+        </footer>
+    </div>
+
+    <script>
+        // State variables
+        let currentAsset = 'GOLD'; // 'GOLD' or 'NASDAQ'
+        let currentPosition = 'BUY'; // 'BUY' or 'SELL'
+
+        // Preset configuration
+        const CONFIG = {
+            GOLD: {
+                targetOffset: 1.00,
+                unitName: '$',
+                tickValuePerContract: 100, // $1 = $100 per contract
+                decimals: 2,
+                placeholder: '2000.00'
+            },
+            NASDAQ: {
+                targetOffset: 10.00,
+                unitName: 'pt',
+                tickValuePerContract: 20, // 1pt = $20 per contract
+                decimals: 2,
+                placeholder: '18000.00'
+            }
+        };
+
+        // Switch Asset (Gold vs Nasdaq)
+        function setAsset(asset) {
+            currentAsset = asset;
+            const goldBtn = document.getElementById('assetGold');
+            const nasdaqBtn = document.getElementById('assetNasdaq');
+
+            if (asset === 'GOLD') {
+                goldBtn.className = "py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 bg-amber-500/20 text-amber-400 border border-amber-500/50 shadow-sm";
+                nasdaqBtn.className = "py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 text-slate-400 hover:text-slate-200 border border-transparent";
+            } else {
+                nasdaqBtn.className = "py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 bg-blue-500/20 text-blue-400 border border-blue-500/50 shadow-sm";
+                goldBtn.className = "py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 text-slate-400 hover:text-slate-200 border border-transparent";
+            }
+
+            // Update placeholders
+            for (let i = 0; i < 6; i++) {
+                document.getElementById(`price-${i}`).placeholder = CONFIG[asset].placeholder;
+            }
+
+            calculate();
+        }
+
+        // Switch Position (Buy vs Sell)
+        function setPosition(pos) {
+            currentPosition = pos;
+            const buyBtn = document.getElementById('posBuy');
+            const sellBtn = document.getElementById('posSell');
+            const targetCard = document.getElementById('targetCard');
+
+            if (pos === 'BUY') {
+                buyBtn.className = "py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-sm";
+                sellBtn.className = "py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 text-slate-400 hover:text-slate-200 border border-transparent";
+                
+                targetCard.className = "bg-gradient-to-br from-emerald-950/40 to-slate-900 p-3 rounded-2xl border border-emerald-500/30";
+            } else {
+                sellBtn.className = "py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 bg-rose-500/20 text-rose-400 border border-rose-500/50 shadow-sm";
+                buyBtn.className = "py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 text-slate-400 hover:text-slate-200 border border-transparent";
+                
+                targetCard.className = "bg-gradient-to-br from-rose-950/40 to-slate-900 p-3 rounded-2xl border border-rose-500/30";
+            }
+
+            calculate();
+        }
+
+        // Calculation Core Logic
+        function calculate() {
+            const assetConfig = CONFIG[currentAsset];
+            let cumulativeValue = 0;
+            let cumulativeQty = 0;
+
+            // Iterate through all 6 entries (0 to 5)
+            for (let i = 0; i < 6; i++) {
+                const priceInput = document.getElementById(`price-${i}`);
+                const qtyInput = document.getElementById(`qty-${i}`);
+                const stepAvgBadge = document.getElementById(`stepAvg-${i}`);
+
+                const price = parseFloat(priceInput.value);
+                const qty = parseFloat(qtyInput.value) || 0;
+
+                if (!isNaN(price) && price > 0 && qty > 0) {
+                    cumulativeValue += price * qty;
+                    cumulativeQty += qty;
+                    
+                    const currentAvg = cumulativeValue / cumulativeQty;
+                    stepAvgBadge.innerText = `누적평단: ${currentAvg.toFixed(assetConfig.decimals)}`;
+                    stepAvgBadge.className = "text-[11px] font-semibold text-slate-300";
+                } else {
+                    stepAvgBadge.innerText = `-`;
+                    stepAvgBadge.className = "text-[11px] text-slate-500";
+                }
+            }
+
+            // Update Header & Card Displays
+            const avgDisplay = document.getElementById('avgPriceDisplay');
+            const targetDisplay = document.getElementById('targetPriceDisplay');
+            const targetOffsetBadge = document.getElementById('targetOffsetBadge');
+            const totalContractsBadge = document.getElementById('totalContractsBadge');
+            const targetProfitDisplay = document.getElementById('targetProfitDisplay');
+
+            const targetSign = currentPosition === 'BUY' ? '+' : '-';
+            targetOffsetBadge.innerText = `${targetSign}${assetConfig.targetOffset.toFixed(2)}${assetConfig.unitName}`;
+
+            if (cumulativeQty > 0) {
+                const avgPrice = cumulativeValue / cumulativeQty;
+                let targetPrice = 0;
+
+                if (currentPosition === 'BUY') {
+                    targetPrice = avgPrice + assetConfig.targetOffset;
+                } else {
+                    targetPrice = avgPrice - assetConfig.targetOffset;
+                }
+
+                // Calculate Profit Amount in USD
+                const totalProfitUsd = cumulativeQty * assetConfig.targetOffset * assetConfig.tickValuePerContract;
+
+                avgDisplay.innerText = avgPrice.toFixed(assetConfig.decimals);
+                targetDisplay.innerText = targetPrice.toFixed(assetConfig.decimals);
+                totalContractsBadge.innerText = `${cumulativeQty} 계약`;
+                
+                // Color scheme adjustments for targets
+                if (currentPosition === 'BUY') {
+                    targetDisplay.className = "text-lg font-extrabold text-emerald-400 mt-1 tracking-tight";
+                    targetOffsetBadge.className = "text-[10px] font-semibold text-emerald-400/80";
+                    targetProfitDisplay.className = "font-bold text-emerald-400";
+                } else {
+                    targetDisplay.className = "text-lg font-extrabold text-rose-400 mt-1 tracking-tight";
+                    targetOffsetBadge.className = "text-[10px] font-semibold text-rose-400/80";
+                    targetProfitDisplay.className = "font-bold text-rose-400";
+                }
+
+                targetProfitDisplay.innerText = `+${assetConfig.targetOffset.toFixed(2)} ${assetConfig.unitName} (약 $${totalProfitUsd.toLocaleString()})`;
+
+            } else {
+                avgDisplay.innerText = "0.00";
+                targetDisplay.innerText = "0.00";
+                totalContractsBadge.innerText = "0 계약";
+                targetProfitDisplay.innerText = "+0.00 pt ($0)";
+                targetDisplay.className = "text-lg font-extrabold text-slate-400 mt-1 tracking-tight";
+            }
+        }
+
+        // Reset all input fields
+        function resetAll() {
+            for (let i = 0; i < 6; i++) {
+                document.getElementById(`price-${i}`).value = '';
+                document.getElementById(`qty-${i}`).value = (i === 0) ? '1' : '';
+            }
+            calculate();
+        }
+
+        // Initial launch calculation on window load
+        window.onload = function() {
+            calculate();
+        };
+    </script>
+</body>
+</html>
+```
